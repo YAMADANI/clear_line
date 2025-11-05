@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import SettingsModal from "./components/SettingsModal";
 import AddReservationModal from "./components/AddReservationModal";
+
 export default function AdminPage() {
   const [reservations, setReservations] = useState<any[]>([]);
   const [called, setCalled] = useState<any[]>([]);
@@ -73,20 +74,20 @@ export default function AdminPage() {
 
   // 次に呼ぶ
   async function handleCall(id: number) {
-    await fetch('/api/reservations', {
+    await fetch(`/api/reservations/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id })
+      body: JSON.stringify({ status: 'called' })
     });
     setRefresh(r => r + 1);
   }
 
   // 呼び出し取消
   async function handleCallCancel(id: number) {
-    const res = await fetch('/api/reservations', {
+    const res = await fetch(`/api/reservations/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, status: 'waiting' })
+      body: JSON.stringify({ status: 'waiting' })
     });
     if (!res.ok) {
       alert('呼び出し取消に失敗しました');
@@ -111,9 +112,9 @@ export default function AdminPage() {
         onClick={() => setSettingsOpen(true)}
         aria-label="設定"
       >
-        <svg width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="currentColor" className="text-gray-500">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.25 2.25c.38-1.14 2.12-1.14 2.5 0l.19.57a1.5 1.5 0 0 0 2.1.87l.54-.31c1.06-.6 2.3.64 1.7 1.7l-.31.54a1.5 1.5 0 0 0 .87 2.1l.57.19c1.14.38 1.14 2.12 0 2.5l-.57.19a1.5 1.5 0 0 0-.87 2.1l.31.54c.6 1.06-.64 2.3-1.7 1.7l-.54-.31a1.5 1.5 0 0 0-2.1.87l-.19.57c-.38 1.14-2.12 1.14-2.5 0l-.19-.57a1.5 1.5 0 0 0-2.1-.87l-.54.31c-1.06.6-2.3-.64-1.7-1.7l.31-.54a1.5 1.5 0 0 0-.87-2.1l-.57-.19c-1.14-.38-1.14-2.12 0-2.5l.57-.19a1.5 1.5 0 0 0 .87-2.1l-.31-.54c-.6-1.06.64-2.3 1.7-1.7l.54.31a1.5 1.5 0 0 0 2.1-.87l.19-.57z" />
-          <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth={2} />
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-gray-500">
+          <circle cx="12" cy="12" r="3.5" />
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 8 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 8a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 8 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09c0 .66.39 1.25 1 1.51a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 8c.66 0 1.25.39 1.51 1H21a2 2 0 1 1 0 4h-.09c-.66 0-1.25.39-1.51 1z" />
         </svg>
       </button>
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
@@ -136,33 +137,24 @@ export default function AdminPage() {
         </div>
         <div className="flex-1 bg-gray-100 rounded p-8">
           <div className="text-lg text-gray-500 mb-4">呼び出し済み番号</div>
-          <div className="flex flex-wrap gap-4">
+          <div className="flex flex-wrap gap-2">
             {called.length === 0 && <span className="text-gray-400 text-xl">なし</span>}
-            {called.map((c: any) => (
-              <div key={c.id} className="flex flex-col items-center">
-                <span
-                      className="w-16 h-16 flex items-center justify-center text-3xl font-bold rounded bg-linear-to-br from-gray-400 to-gray-200 text-white mb-2"
-                    >
-                  {c.number}
-                </span>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handleCallCancel(c.id)}
-                    className="bg-yellow-400 hover:bg-yellow-500 text-white px-4 py-2 rounded text-base font-bold shadow"
-                  >取消</button>
-                  <button
-                    onClick={async () => {
-                      await fetch(`/api/reservations/${c.id}`, {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ status: 'done' })
-                      });
-                      setRefresh(r => r + 1);
-                    }}
-                    className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-base font-bold shadow"
-                  >完了</button>
-                </div>
-              </div>
+            {called.filter((c: any) => c.status !== 'done').map((c: any) => (
+              <button
+                key={c.id}
+                className="w-16 h-16 flex items-center justify-center text-2xl font-bold rounded-lg bg-teal-500 hover:bg-teal-600 text-white shadow border-2 border-teal-400 hover:scale-105 hover:ring-2 hover:ring-teal-300 transition-all duration-150 m-1"
+                onClick={async () => {
+                  await fetch(`/api/reservations/${c.id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: 'done' })
+                  });
+                  setRefresh(r => r + 1);
+                }}
+                style={{ outline: 'none' }}
+              >
+                {c.number}
+              </button>
             ))}
           </div>
         </div>

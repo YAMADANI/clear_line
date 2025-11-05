@@ -12,13 +12,15 @@ export async function GET(req: NextRequest) {
           orderBy: { id: 'asc' },
           select: { id: true, number: true },
         });
-        const called = await prisma.reservation.findMany({
-          where: { status: 'called' },
-          orderBy: { id: 'desc' },
-          select: { id: true, number: true },
-        });
-        const next = waiting[0] || null;
-        const payload = { waiting, called, next };
+        const payload = {
+          called: await prisma.reservation.findMany({
+            where: { status: 'called' },
+            orderBy: { id: 'desc' },
+            select: { id: true, number: true, status: true },
+          }),
+          waiting,
+          next: waiting[0] || null,
+        };
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
       }
       await push();

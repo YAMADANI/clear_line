@@ -1,5 +1,6 @@
+
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 
 export default function MonitorSinglePage() {
   const [calledList, setCalledList] = useState<any[]>([]);
@@ -8,6 +9,9 @@ export default function MonitorSinglePage() {
   const [currentTime, setCurrentTime] = useState<string>(
     new Date().toLocaleTimeString('ja-JP', { hour12: false })
   );
+  // 呼び出し済みページ送り用
+  const [calledPage, setCalledPage] = useState(0);
+  const calledPageTimer = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -32,6 +36,27 @@ export default function MonitorSinglePage() {
     return () => { cancelled = true; };
   }, []);
 
+  // ページ送りロジック（calledList宣言の直後、returnの前）
+  useEffect(() => {
+    if (calledList.length <= 21) {
+      setCalledPage(0);
+      if (calledPageTimer.current) {
+        clearInterval(calledPageTimer.current);
+        calledPageTimer.current = null;
+      }
+      return;
+    }
+    // ページ数
+    const pageCount = Math.ceil(calledList.length / 21);
+    if (calledPageTimer.current) clearInterval(calledPageTimer.current);
+    calledPageTimer.current = setInterval(() => {
+      setCalledPage(prev => (prev + 1) % pageCount);
+    }, 5000); // 5秒ごと
+    return () => {
+      if (calledPageTimer.current) clearInterval(calledPageTimer.current);
+    };
+  }, [calledList.length]);
+
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date().toLocaleTimeString('ja-JP', { hour12: false }));
@@ -45,24 +70,55 @@ export default function MonitorSinglePage() {
       <div className="flex flex-1 w-full items-stretch relative px-8 pb-4">
         {/* 左: 呼び出し済み番号（履歴） */}
   <aside className="w-[400px] bg-white border-r-2 border-teal-300 flex flex-col items-center justify-start rounded-2xl shadow-md py-8 mr-8">
-          <div className="text-4xl text-teal-700 font-bold mb-6 tracking-wide">呼び出し済み</div>
+          <div className="flex items-center mb-6">
+            <span className="text-4xl text-teal-700 font-bold tracking-wide">呼び出し済み</span>
+            {calledList.length > 21 && (
+              <span className="ml-4 text-teal-600 text-lg font-semibold align-bottom">
+                {(() => {
+                  const pageCount = Math.ceil(calledList.length / 21);
+                  return `${(calledPage % pageCount) + 1} / ${pageCount}`;
+                })()}
+              </span>
+            )}
+          </div>
           {calledList.length > 0 ? (
-            <ul className="grid grid-cols-3 gap-2 items-center">
-              {calledList.slice(0, 5).reverse().map((item, idx) => (
-                <li key={item.id} className="w-28 h-16 flex items-center justify-center text-5xl font-extrabold text-white rounded-2xl shadow-md border border-teal-300"
-                  style={{
-                    minWidth: '7rem',
-                    minHeight: '4rem',
-                    background: `linear-gradient(135deg, #38b2ac 60%, #4299e1 100%)`,
-                    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.2)',
-                  }}>
-                  {item.number}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <div className="w-28 h-16 flex items-center justify-center text-5xl font-extrabold text-white rounded-2xl shadow-md border border-teal-300" style={{background: `linear-gradient(135deg, #38b2ac 60%, #4299e1 100%)`}}>-</div>
-          )}
+            <>
+              <ul className="grid grid-cols-3 gap-2 items-center">
+                {(() => {
+                  const reversed = calledList.slice().reverse();
+                  if (reversed.length <= 21) {
+                    return reversed.map((item) => (
+                      <li key={item.id} className="w-28 h-16 flex items-center justify-center text-5xl font-extrabold text-white rounded-2xl shadow-md border border-teal-300"
+                        style={{
+                          minWidth: '7rem',
+                          minHeight: '4rem',
+                          background: `linear-gradient(135deg, #38b2ac 60%, #4299e1 100%)`,
+                          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.2)',
+                        }}>
+                        {item.number}
+                      </li>
+                    ));
+                  } else {
+                    const pageCount = Math.ceil(reversed.length / 21);
+                    const page = calledPage % pageCount;
+                    const start = page * 21;
+                    const end = start + 21;
+                    return reversed.slice(start, end).map((item) => (
+                      <li key={item.id} className="w-28 h-16 flex items-center justify-center text-5xl font-extrabold text-white rounded-2xl shadow-md border border-teal-300"
+                        style={{
+                          minWidth: '7rem',
+                          minHeight: '4rem',
+                          background: `linear-gradient(135deg, #38b2ac 60%, #4299e1 100%)`,
+                          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.2)',
+                        }}>
+                        {item.number}
+                      </li>
+                    ));
+                  }
+                })()}
+              </ul>
+            </>
+          ) : null}
         </aside>
         {/* 中央: 直近1人の番号を最大表示 */}
         <section className="flex-1 flex flex-col items-center justify-center bg-white rounded-2xl shadow-md relative py-8">
@@ -80,7 +136,7 @@ export default function MonitorSinglePage() {
       <footer className="w-full min-h-[140px] bg-white border-t-2 border-teal-300 flex items-center px-8 py-6 rounded-b-2xl shadow-md relative">
   <span className="text-4xl text-teal-700 font-bold tracking-wide mr-8">次回</span>
         <ul className="flex gap-4 items-center">
-          {waitingList.map((item) => (
+          {waitingList.slice(0, 9).map((item) => (
             <li
               key={`waiting-${item.id}`}
               className="w-28 h-16 flex items-center justify-center text-5xl font-extrabold text-white rounded-2xl shadow-md border border-teal-300"
