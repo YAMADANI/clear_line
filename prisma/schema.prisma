@@ -1,0 +1,23 @@
+// Prisma schema for reservation system
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Reservation {
+  id         Int      @id @default(autoincrement())
+  number     Int
+  status     String   @default("waiting")
+  created_at DateTime @default(now())
+}
+
+model Setting {
+  id    Int    @id @default(autoincrement())
+  key   String @unique
+  value String?
+}
