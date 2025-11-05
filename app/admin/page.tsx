@@ -25,17 +25,31 @@ export default function AdminPage() {
         const res = await fetch('/api/reservations/get/');
         if (!cancelled) setReservations(await res.json());
         // 呼び出し済み番号
-        const res2 = await fetch('/api/stream');
-        if (!res2.body) throw new Error('stream fetch error');
-        const reader = res2.body.getReader();
-        const decoder = new TextDecoder();
-        const { value } = await reader.read();
-        const text = decoder.decode(value);
-        const match = text.match(/data: (.+)/);
-        if (match) {
-          const payload = JSON.parse(match[1]);
-          setCalled(Array.isArray(payload.called) ? payload.called : payload.called ? [payload.called] : []);
+        const controller = new AbortController();
+        const signal = controller.signal;
+        let reader;
+        try {
+          const res2 = await fetch('/api/stream', { signal });
+          if (!res2.body) throw new Error('stream fetch error');
+          reader = res2.body.getReader();
+          const decoder = new TextDecoder();
+          const { value } = await reader.read();
+          const text = decoder.decode(value);
+          const match = text.match(/data: (.+)/);
+          if (match) {
+            const payload = JSON.parse(match[1]);
+            setCalled(Array.isArray(payload.called) ? payload.called : payload.called ? [payload.called] : []);
+          }
+        } catch (e) {
+          if ((e as Error).name !== 'AbortError') {
+            console.error('Fetch error:', e);
+          }
+        } finally {
+          if (reader) await reader.cancel();
         }
+        return () => {
+          controller.abort();
+        };
       } catch (e) {
         if (!cancelled) alert('データ取得に失敗しました');
       } finally {
