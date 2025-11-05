@@ -5,6 +5,8 @@ import { useEffect, useState, useRef } from 'react';
 export default function MonitorSinglePage() {
   const [calledList, setCalledList] = useState<any[]>([]);
   const [current, setCurrent] = useState<any>(null);
+  // 直前の呼び出し済みリスト保持用
+  const prevCalledListRef = useRef<any[]>([]);
   const [waitingList, setWaitingList] = useState<any[]>([]);
   const [currentTime, setCurrentTime] = useState<string>(
     new Date().toLocaleTimeString('ja-JP', { hour12: false })
@@ -27,9 +29,18 @@ export default function MonitorSinglePage() {
         const match = text.match(/data: (.+)/);
         if (match) {
           const payload = JSON.parse(match[1]);
-          setCalledList(Array.isArray(payload.called) ? payload.called : []);
-          setCurrent(payload.next || null);
+          const newCalledList = Array.isArray(payload.called) ? payload.called : [];
+          setCalledList(newCalledList);
           setWaitingList(Array.isArray(payload.waiting) ? payload.waiting : []);
+          // 新規追加番号検出
+          const prevIds = new Set((prevCalledListRef.current || []).map((c: any) => c.id));
+          const added = newCalledList.find((c: any) => !prevIds.has(c.id));
+          if (added) {
+            setCurrent(added);
+          } else {
+            setCurrent(newCalledList[0] || null);
+          }
+          prevCalledListRef.current = newCalledList;
         }
       }
     })();
@@ -127,7 +138,7 @@ export default function MonitorSinglePage() {
               呼び出し中
             </div>
             <div className="text-[21vw] font-extrabold text-teal-500 leading-none tracking-widest drop-shadow-lg mt-8 mb-8">
-              {calledList[0]?.number ?? '-'}
+              {current?.number ?? '-'}
             </div>
           </div>
         </section>

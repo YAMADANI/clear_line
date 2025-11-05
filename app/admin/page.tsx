@@ -2,6 +2,7 @@
 import { useState, useEffect } from "react";
 import SettingsModal from "./components/SettingsModal";
 import AddReservationModal from "./components/AddReservationModal";
+import CancelTabsModal from "./components/CancelTabsModal";
 
 export default function AdminPage() {
   const [reservations, setReservations] = useState<any[]>([]);
@@ -10,11 +11,38 @@ export default function AdminPage() {
   const [refresh, setRefresh] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
-  // 予約枠（SettingsModalとAddReservationModalで共有）
-  const [slots, setSlots] = useState<{ time: string; count: number }[]>([
-    { time: '09:00', count: 2 },
-    { time: '10:00', count: 3 },
-  ]);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [fixDoneOpen, setFixDoneOpen] = useState(false);
+  // done→waiting/called修正
+  async function handleFixDone(number: number, status: 'waiting' | 'called') {
+    // numberからidを特定
+    const res = await fetch('/api/reservations/get/', { cache: 'no-store' });
+    const all = await res.json();
+    const found = all.find((r: any) => r.number === number && r.status === 'done');
+    if (!found) {
+      alert('該当番号が見つかりません');
+      return;
+    }
+    await fetch(`/api/reservations/${found.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status })
+    });
+    setCancelOpen(false);
+    setRefresh((r: number) => r + 1);
+  }
+  // 予約枠（時間なしに変更）
+
+  // 呼び出し済み番号（done以外）を取り消し
+  async function handleCancelCalled(id: number) {
+    await fetch(`/api/reservations/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'waiting' })
+    });
+    setCancelOpen(false);
+    setRefresh((r: number) => r + 1);
+  }
 
   // 待ち番号リスト取得（管理画面はGET APIで定期取得）
   useEffect(() => {
@@ -60,13 +88,11 @@ export default function AdminPage() {
     return () => { cancelled = true; };
   }, [refresh]);
 
-  // 予約追加
-  async function handleAddReservation(slot: string) {
+  // 予約追加（時間なし）
+  async function handleAddReservation() {
     setLoading(true);
     await fetch('/api/reservations', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ slot })
     });
     setLoading(false);
     setRefresh(r => r + 1);
@@ -123,12 +149,14 @@ export default function AdminPage() {
         <div className="flex-1 bg-gray-100 rounded p-8 flex flex-col items-center">
           <div className="text-lg text-gray-500 mb-2">次に呼ぶ番号</div>
           <div className="text-6xl font-bold text-blue-700 mb-4">
-            {reservations.length > 0 && reservations[0] && reservations[0].number ? reservations[0].number : '-'}
+            {reservations.filter((r: any) => r.status === 'waiting').length > 0
+              ? reservations.filter((r: any) => r.status === 'waiting')[0].number
+              : '-'}
           </div>
-          <div className="text-lg text-gray-400 mb-4">待ち人数: {reservations.length}</div>
-          {reservations.length > 0 && (
+          <div className="text-lg text-gray-400 mb-4">待ち人数: {reservations.filter((r: any) => r.status === 'waiting').length}</div>
+          {reservations.filter((r: any) => r.status === 'waiting').length > 0 && (
             <button
-              onClick={() => handleCall(reservations[0].id)}
+              onClick={() => handleCall(reservations.filter((r: any) => r.status === 'waiting')[0].id)}
               className="bg-blue-500 hover:bg-blue-600 text-white px-8 py-4 rounded-lg font-bold text-xl mt-2 shadow"
             >
               呼び出し
@@ -160,28 +188,40 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* 予約追加ボタンを中央に配置 */}
-      <div className="flex justify-center my-8">
+      {/* 予約追加・取り消し・done修正ボタンを中央に配置 */}
+      <div className="flex justify-center my-8 gap-6">
         <button
           className="bg-teal-500 hover:bg-teal-600 text-white rounded-full shadow px-8 py-4 font-bold text-xl"
           onClick={() => setAddOpen(true)}
         >
           予約追加
         </button>
+        <button
+          className="bg-yellow-500 hover:bg-yellow-600 text-white rounded-full shadow px-8 py-4 font-bold text-xl"
+          onClick={() => setCancelOpen(true)}
+        >
+          取り消し
+        </button>
       </div>
+      <CancelTabsModal
+        open={cancelOpen}
+        onClose={() => setCancelOpen(false)}
+        called={called.filter((c: any) => c.status !== 'done')}
+        onCancel={handleCancelCalled}
+        onFix={handleFixDone}
+      />
       <AddReservationModal
         open={addOpen}
         onClose={() => setAddOpen(false)}
         onAdd={handleAddReservation}
-        slots={slots}
       />
 
       <h2 className="text-2xl font-semibold mb-6 text-teal-600">待ち番号リスト</h2>
       <div className="flex flex-wrap gap-4">
-        {reservations.length === 0 && (
+        {reservations.filter((r: any) => r.status === 'waiting').length === 0 && (
           <span className="text-gray-400 text-xl">待ち番号なし</span>
         )}
-        {reservations.map((r: any) => (
+        {reservations.filter((r: any) => r.status === 'waiting').map((r: any) => (
           <div key={r.id} className="flex flex-col items-center bg-gray-50 rounded shadow p-3 min-w-22">
             <span className="w-14 h-14 flex items-center justify-center text-2xl font-bold rounded bg-linear-to-br from-teal-400 to-blue-400 text-white mb-2">{r.number}</span>
             <div className="flex gap-2">
